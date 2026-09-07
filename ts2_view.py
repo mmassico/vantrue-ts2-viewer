@@ -331,7 +331,7 @@ def main():
                               interpolation=cv2.INTER_CUBIC)
             hot = np.unravel_index(int(degc.argmax()), degc.shape)
             cv2.drawMarker(view, (hot[1] * args.scale, hot[0] * args.scale),
-                           (255, 255, 255), cv2.MARKER_CROSS, 14, 1)
+                           (0, 0, 255), cv2.MARKER_CROSS, 14, 1)
 
             # spot temperatures: pinned point (left-click) and live pointer
             def sensor_px(wx, wy):
