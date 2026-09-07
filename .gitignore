@@ -1,0 +1,33 @@
+# --- never commit these ---------------------------------------------------
+# Vendor binaries (copyrighted) and anything derived from unpacking them.
+Vantrue_Thermal_Win_App/
+*.apk
+*.xapk
+*.so
+*.dll
+*.exe
+
+# USB captures.  USBPcap records every device on the controller, not just the
+# camera, so a raw capture can contain HID and Bluetooth traffic from your
+# other peripherals.  Filter one to the camera before sharing it.
+*.pcap
+*.pcapng
+
+# Captured frames and recordings
+captures/
+frames/
+*.npy
+
+# --- ordinary noise -------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

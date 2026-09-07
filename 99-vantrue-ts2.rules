@@ -1,0 +1,8 @@
+# Vantrue Thermal TS2 -- give the 'plugdev' group raw USB access.
+# Install:  sudo cp 99-vantrue-ts2.rules /etc/udev/rules.d/
+#           sudo udevadm control --reload-rules && sudo udevadm trigger
+# Then replug the camera.  Confirm your user is in plugdev: id -nG
+#
+# The device is vendor-class (FF/F0) on both interfaces, so no in-kernel
+# driver claims it and libusb can take it directly -- nothing to unbind.
+SUBSYSTEM=="usb", ATTR{idVendor}=="3474", ATTR{idProduct}=="45f2", MODE="0660", GROUP="plugdev", TAG+="uaccess"
