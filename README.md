@@ -67,7 +67,22 @@ exclusively, and you will get `Access denied`.
 ./ts2_view.py                 live window
 ./ts2_view.py --grab 10       save 10 frames (PNG preview + .npy of °C) and exit
 ./ts2_view.py --scale 4       bigger window
+./ts2_view.py --no-smooth     unsmoothed palette range, for comparison
 ```
+
+The header shows the **palette range** — the two temperatures the colour ramp
+is stretched between — followed by the true scene maximum, which can sit above
+the top of the range while it catches up.
+
+Those bounds are damped rather than recomputed from scratch each frame. Taking
+each frame's percentiles independently makes the whole picture flash whenever
+something hot enters or leaves, because the mapping snaps and every pixel
+changes brightness at once. Instead the range opens out quickly, so nothing
+genuinely hot stays clipped, closes back in slowly so the image settles, and
+ignores movement below a dead band so sensor noise alone cannot walk it around.
+On a static scene the bounds hold perfectly still. `--no-smooth` restores the
+old per-frame behaviour if you want to see the difference; the constants are
+at the top of `PaletteRange` in `ts2_view.py`.
 
 | Input | Action |
 |---|---|

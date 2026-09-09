@@ -3,6 +3,7 @@
 
     ./ts2_view.py                   live window
     ./ts2_view.py --grab 10         save 10 frames as PNG + .npy and exit
+    ./ts2_view.py --no-smooth       unsmoothed palette range (see PaletteRange)
 
 In the live window, hovering shows the temperature under the pointer (it
 disappears when the pointer leaves the image).  Keys:
@@ -54,6 +55,7 @@ def resource_path(name):
         if os.path.exists(p):
             return p
     return None
+
 
 def _venv_python(root):
     """Path to the interpreter inside virtualenv `root`, or None."""
@@ -199,11 +201,56 @@ def colorize(img8, cmap):
     return img8 if cmap is None else cv2.applyColorMap(img8, cmap)
 
 
-def stretch(a, lo_pct=0.5, hi_pct=99.5):
-    lo, hi = np.percentile(a, [lo_pct, hi_pct])
-    if hi <= lo:
-        hi = lo + 1
-    return np.clip((a - lo) * (255.0 / (hi - lo)), 0, 255).astype(np.uint8)
+# --- palette range --------------------------------------------------------
+# Taking each frame's percentiles as the display range makes the whole picture
+# flash: a hot object entering or leaving shifts the mapping, and *every*
+# pixel changes brightness at once even though the scene barely moved.
+#
+# So the bounds are damped instead, asymmetrically.  Opening out is quick, so
+# something genuinely hot is never left clipped for long; closing back in is
+# slow, so the picture settles instead of pumping.  Movement smaller than the
+# dead band is ignored outright, which is what stops sensor noise alone from
+# walking the bounds around frame to frame.
+RANGE_LO_PCT, RANGE_HI_PCT = 0.5, 99.5
+RANGE_EXPAND = 0.35        # fraction of the gap closed per frame, opening out
+RANGE_CONTRACT = 0.03      # ... and closing in: ~2 s to settle at 25 fps
+RANGE_DEADBAND = 0.25      # degC; smaller target moves are ignored entirely
+RANGE_MIN_SPAN = 3.0       # degC; keeps a flat scene from amplifying noise
+
+
+class PaletteRange:
+    """The low/high temperatures the colour ramp is stretched between."""
+
+    def __init__(self, smooth=True):
+        self.smooth = smooth
+        self.lo = None
+        self.hi = None
+
+    @staticmethod
+    def _ease(current, target, expanding):
+        if abs(target - current) < RANGE_DEADBAND:
+            return current
+        rate = RANGE_EXPAND if expanding else RANGE_CONTRACT
+        return current + (target - current) * rate
+
+    def update(self, degc):
+        lo, hi = (float(v) for v in
+                  np.percentile(degc, [RANGE_LO_PCT, RANGE_HI_PCT]))
+        if self.lo is None or not self.smooth:
+            self.lo, self.hi = lo, hi
+        else:
+            self.lo = self._ease(self.lo, lo, expanding=lo < self.lo)
+            self.hi = self._ease(self.hi, hi, expanding=hi > self.hi)
+        if self.hi - self.lo < RANGE_MIN_SPAN:
+            mid = (self.hi + self.lo) / 2.0
+            self.lo = mid - RANGE_MIN_SPAN / 2.0
+            self.hi = mid + RANGE_MIN_SPAN / 2.0
+        return self.lo, self.hi
+
+
+def stretch(a, lo, hi):
+    return np.clip((a - lo) * (255.0 / max(hi - lo, 1e-6)),
+                   0, 255).astype(np.uint8)
 
 
 WINDOW = "Vantrue TS2"
@@ -592,6 +639,9 @@ def main():
                     help="save N frames and exit instead of showing a window")
     ap.add_argument("--outdir", default="../captures")
     ap.add_argument("--scale", type=int, default=3)
+    ap.add_argument("--no-smooth", action="store_true",
+                    help="recompute the palette range from every frame, as "
+                         "before; useful for comparing against the smoothing")
     args = ap.parse_args()
 
     cam = TS2()
@@ -604,6 +654,7 @@ def main():
     saved = n = 0
     t0 = time.time()
     palette = 0
+    prange = PaletteRange(smooth=not args.no_smooth)
     cursor = {"x": None, "y": None, "pinned": None}
     # the window manager may not have mapped the window on the very first
     # imshow, so the icon gets a few frames to take
@@ -631,7 +682,8 @@ def main():
                 continue
 
             name, cmap = PALETTES[palette]
-            view = colorize(stretch(degc), cmap)
+            lo, hi = prange.update(degc)
+            view = colorize(stretch(degc, lo, hi), cmap)
             view = cv2.resize(view, (WIDTH * args.scale, HEIGHT * args.scale),
                               interpolation=cv2.INTER_CUBIC)
             hot = np.unravel_index(int(degc.argmax()), degc.shape)
@@ -653,7 +705,8 @@ def main():
                 reading = f"   [{px:3d},{py:3d}] {degc[py, px]:5.1f} C"
 
             fps = n / max(time.time() - t0, 1e-6)
-            cv2.putText(view, f"{degc.min():5.1f} - {degc.max():5.1f} C   "
+            cv2.putText(view, f"{lo:5.1f} - {hi:5.1f} C   "
+                              f"max {degc.max():5.1f}   "
                               f"{fps:4.1f} fps   {name}{reading}",
                         (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                         (255, 255, 255), 1, cv2.LINE_AA)
