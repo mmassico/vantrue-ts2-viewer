@@ -7,7 +7,7 @@ The TS2 ships with a Windows-only application. This project reimplements its
 USB protocol so the camera works anywhere, and exposes the **full radiometric
 plane** — a real temperature for every pixel, not just a false-colour picture.
 
-![Live viewer](./docs/screenshot.png?v=1.3)
+![Live viewer](./docs/screenshot.png?v=1.4)
 
 ---
 
