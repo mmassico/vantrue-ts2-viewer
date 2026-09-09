@@ -13,6 +13,9 @@ Vantrue_Thermal_Win_App/
 *.pcap
 *.pcapng
 
+# Icon previews from tools/make_icon.py --preview
+tools/preview/
+
 # Captured frames and recordings
 captures/
 frames/

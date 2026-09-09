@@ -23,13 +23,45 @@ import time
 VENV_CANDIDATES = ("venv", ".venv", "~/.venv/ts2")
 
 
+def script_dir():
+    """Directory the application lives in.
+
+    For a frozen build that is the executable's directory, not __file__ --
+    PyInstaller puts __file__ inside the bundle, so anything shipped next to
+    the program has to be looked up beside the executable instead.
+    """
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def resource_path(name):
+    """Locate a data file that ships with the application, or None.
+
+    Three places, because a frozen build can put it in any of them:
+    PyInstaller's --onefile unpacks bundled data into a temporary directory it
+    names in sys._MEIPASS; --onedir leaves it beside the executable; and a
+    plain script has it beside the source.
+    """
+    roots = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        roots.append(meipass)
+    roots.append(script_dir())
+    roots.append(os.path.dirname(os.path.abspath(__file__)))
+    for root in roots:
+        p = os.path.join(root, name)
+        if os.path.exists(p):
+            return p
+    return None
+
 def _venv_python(root):
     """Path to the interpreter inside virtualenv `root`, or None."""
     if not root:
         return None
     root = os.path.expanduser(root)
     if not os.path.isabs(root):
-        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), root)
+        root = os.path.join(script_dir(), root)
     names = (("Scripts", "python.exe"),) if sys.platform == "win32" else \
             (("bin", "python3"), ("bin", "python"))
     for parts in names:
@@ -258,6 +290,274 @@ def _pointer_over_image(window):
     return x <= pos[0] < x + w and y <= pos[1] < y + h
 
 
+# --- application icon -----------------------------------------------------
+# Windows needs a real .ico file on disk: the title bar and taskbar button
+# fall back to whatever python.exe is wearing otherwise, and there is no way
+# to hand Win32 a PNG without building an HICON by hand.  X11 takes the PNGs
+# embedded below, so on Linux the script carries its own icon and cannot lose
+# it when copied somewhere else.
+ICON_FILE = "icon.ico"
+
+# Regenerate with tools/make_icon.py.  Quantised to 128 colours, which is
+# visually identical here and halves the base64.
+ICON_PNGS = (
+    # 16 x 16
+    (
+        "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAABgFBMVEUAAAB/f3/9//9G"
+        "SlI3O0MvMzrO1NwOFRzDydFXW2OWnKcRDSizucMmKixPEVVuF1uOk513fIRdYWpOU1pl"
+        "a3QQFiGTmaI8QUdcYGpLS1lobHbV2+OmrLZhZnB4f4r+py/ZVEh2fIc8PEuGjJiFipKZ"
+        "mZmVI1WDG1j/vD5+g4x8gox/hZCSmZ+Qlp97f4t2fIiUnKNrcHiXn6efpbKepq+jKU+q"
+        "qqpeY2ygpq9bbW2qsL1YXWa3vcq+xc6/1NTGxtTS0uHK0eTb4enqaT7wczr7lSj5/7wA"
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "AAAAAAAAAAAAAAAAAAAAAACpKyXPAAAAgHRSTlMAAgX6/v7///38J/36/f7+7v6r9Kr/"
+        "+f72Epj98fMY//+EESv/Bf7+//9OLijQQCtD/4AopP8Dw6QOJ9on/wwSESf//////wAA"
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "AAAAAEMj3awAAAC+SURBVHjaTc6HbsIwEADQy9muY+zEkE2BUsKmBboXtLRl/P8nYTsS"
+        "ypNO8p1uGKBy8wkXiGN8Ut0hviHa1BVffPXgHp6JX0T8UN1F2S7bdvi9J+KiN8qaRra8"
+        "g4EIeMqDrHNl+QlcBzKchpwp31IJEK73/duQj/5NQ+c7gVy+zk5HzcW8ZTxGQFJ9MB0p"
+        "YU5kd+hJKBmhOaU0j9wVyVlMLUYjWG8KEQtBKvEK4Od++/c1bDjPu+rzNSZFrwbhDGZl"
+        "DzV26JQcAAAAAElFTkSuQmCC"
+    ),
+    # 32 x 32
+    (
+        "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAABgFBMVEUAAAA3O0P8/v/F"
+        "y9NkaXIjJSswNDvN09sTFxmzucIeICSssbpWW2QtCk1bYWoTDClESFCcoquoqK2OlJ2R"
+        "l6B/f39OUlpLDma1M1vBzdl3GnF1e4S7x9PPREVUEGqVJGuUm6alK2R8g43lWiyDipSl"
+        "q7TV2+P3hwzP1OKBHXIODhuvtMPzdxJ8hI99go/Z5/Vtc31qcHpvd4N8g4341Ella3X9"
+        "/+eDiJMAAP+HjZj6sRjFPU3Hx9X7qRD442rm5vf697btaR3rZCUQECCBh5L6wirH09+0"
+        "w9Kyusa/v7+krriWnaiXnquNlZ6ZmZn7viZ+hI9wdoBye4NhbXlVZmYA//8AAAAAAAAA"
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "AAAAAAAAAAAAAAAAAAAAAAChK1lNAAAAgHRSTlMA/gf/8/7+/v/9/v79//j//vwI9f4C"
+        "/v//Kv/sKv///23/7P/s/v3/Ev//Ef9DKhLa/zKs/93/YwGF//8S//8P/////17/KRE/"
+        "BEzfT4IF/4neHRUPAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "AAAAADwAAMcAAAGjSURBVHjavZNpV6MwFIZDvDcNaYBQKtRiV7vZamudRR23Gfd99///"
+        "FQO0luLycZ5zWE548uZmgZAUr/Gdkq95GW4On7/8ukierttu2x3qt08pkHUzYusbIW/m"
+        "TfPko0BjLmkibNG7pIFuT3tO2ZwkpEInAb3C3qhXGNzENdTpaJJAk9rrG3boea2W1wSA"
+        "8XgM7zzuUF1OXRogFUNm+KAg327nZxQfdP4vBQYiCoHIpNnJpei4NiW9EPRXzo855yh8"
+        "cyFFzpVL5LDFkHPLqgaWow3ICGfkwtf9rXKj1KgF2kA3l0n4oQOs1dLK2r9KLTgWArIC"
+        "oHCqpaP9n/drlbLFUS2ki9SCjdwp73YPfv/9s1LTglH0vGKMfsqpUHkXhJLIZtjLsyFO"
+        "u5XVWDBmREJS5G5UZCNwBEqVEa4Uin40zVKtqqfJwMgIoyYi71vBZKGkz+aEJbIX2vFS"
+        "O/14qYHNJchlvVm6MdosfaE/N4AWgEbbrcCP9pMpkCwTsJMcGGh6zTD0WmDDHBu3dDE5"
+        "coPBIaXnBZole2g/+RPSx/4j2+S/8AbWcSsi15oBCgAAAABJRU5ErkJggg=="
+    ),
+    # 48 x 48
+    (
+        "iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAMAAABg3Am1AAABgFBMVEUAAADFy9P4/P43"
+        "O0MwNDskJy0UFxlESFGzusN0eoTM0tl7gYwbHCFRVV6DiJJma3Tk6O6utb5VWWIVCDI9"
+        "QUmWnKicoqu7wstuF3CTmqV/f39tc3yRJGcpCE7RRUVKDWrqZCdcYWq2NFYNDBypqbD6"
+        "lwmHjpf9+9eJkJv4hg76txZREG6jqrajKmF/f79/f/9yeYakqrOrLF323lqepbDDO0/5"
+        "wSFVqqr0eBfhVjQeISbU2eG0tMODHmyWpaWHh5aAiJKLkpyUmqWWlqWRmKN9hY6uWJOv"
+        "hrwAAP+kq7eqs7yrsb5///+rtsC5x83ZTT7u8vff4+n26Xv37Ijl5f+nrr369rUdB0Gq"
+        "sbyltLSqqv+wZp+hRoKaoq6YoKuZmcyQl6GMk56AiJKBhZKWfrN/h5F4h5bY2OV0f4p0"
+        "XJhVZmZINW9BKGcmE0gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "AAAAAAAAAAAAAAAAAAAAAAA9Z8E3AAAAgHRSTlMA/gf+/v7+/v32/vD+/vr+//7+/v6c"
+        "+///9AL//v7+///+//8J/7z/8P//+3L/BAIn////k/7/A//+//8R/xERftN8Ea55sYgB"
+        "TzZPAjES//////8UI///YxEDpcioegXBtIE7i4ARFBidD73O6QAAAAAAAAAAAAAAAAAA"
+        "AAAAAMFFjAUAAAK1SURBVHja7ZXZc9owEIeNJSGEsU2EkhhsA8ZQIEBbyH03TdK7Odr0"
+        "vu/7/3/tyg4Bg8nw1pd+wwzDjD5+rNa7KEoMakGiTE3/qDq18fO6ZPrv/5QP2PuuTpVR"
+        "Va6kQg6Vq9MI10CYAVIzH6cXUoFw418Kd9QBL9W+8EV9pw4zuMhqVO8XfTjytauFi8ZK"
+        "f2tnt1rd3d86U9+fX+usejaSUAjPP1kyNMYa+bk8vBqMaYbBYtAOHioPIEe51+AIcZvZ"
+        "Ouc6vHGMMTfHsW3jLrRVVfcoocw0CSVwkhLTZNROx5EwtW/wk+4z4jGPCEwCsICPM+lE"
+        "DJuG1wahzTkjCG9kMkkgk9kAhc3HCWmDzoJwUzMpIvK47/uBQoSwLxPyghA4nvvzq1Vy"
+        "3RwohND8ZGGJC5xJ+rkft28525ZVkgamNDVJqGqUkGTSheO9SqXiWC03mSQEGZOE56YM"
+        "yH1+3Suul8vrxYoDGRDB5ycIH3QI8H+/6hTLzVqtWS72LNeHCNGdIGg6goCWs1yuLSwu"
+        "rtTKy0GE0BvpxEjfNkNBXlHOcoprC4/q9ccLa8WOlZMXZaRG6VIdBMZlCVbnuLnytF6v"
+        "rzSPO5YLRXBbpyMgzC9LYAhHQQjpFzWURmtAlHE9CkJYCgeyDb5r9UZuiXazp9khTrNz"
+        "OEhom1QWUdquRPog+OZJNsJJOqyhqiHZ6Wcty6nITm+HnRbaWBe0MOH8WYIMy3Kc/rMk"
+        "dFsWGQGHNShv8zR8Wl23NHhaNYHGCQU5DyKYh2R/HpCAwRbGXIQuC69VTpwGAzo0cYhA"
+        "NxGdj5LongtypjUPhnRopj1ZgG1E8RA228rw1oBmwurwYGsEBeMxhHEU2Utc94K9hDCK"
+        "RQ/2Utzmi8d4E2y+wW7d39158XXnSJ2I/CuI3d6TWC3E/j9clvCfKfkLSw9lZ+9UCyQA"
+        "AAAASUVORK5CYII="
+    ),
+    # 64 x 64
+    (
+        "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"
+    ),
+)
+
+
+def claim_taskbar_identity():
+    """Stop Windows filing our window under python.exe.
+
+    Without an explicit AppUserModelID the taskbar button belongs to the
+    interpreter, so it shows the Python icon whatever the window itself is
+    wearing.  Must run before the first window exists.  A no-op elsewhere.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "vantrue.ts2.viewer")
+    except Exception:                    # noqa: BLE001 - purely cosmetic
+        pass
+
+
+def _icon_images():
+    """The embedded icons as (width, height, BGRA array), largest last."""
+    import base64
+    out = []
+    for blob in ICON_PNGS:
+        raw = base64.b64decode("".join(blob))
+        img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_UNCHANGED)
+        if img is not None and img.ndim == 3 and img.shape[2] == 4:
+            out.append((img.shape[1], img.shape[0], img))
+    return out
+
+
+def _win_set_icon(title):
+    import ctypes
+    from ctypes import wintypes
+    path = resource_path(ICON_FILE)
+    if not path:
+        return False
+    u = ctypes.windll.user32
+    u.FindWindowW.restype = wintypes.HWND
+    u.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+    hwnd = u.FindWindowW(None, title)
+    if not hwnd:
+        return False
+    u.LoadImageW.restype = wintypes.HANDLE
+    u.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR,
+                             wintypes.UINT, ctypes.c_int, ctypes.c_int,
+                             wintypes.UINT]
+    u.SendMessageW.restype = ctypes.c_ssize_t
+    u.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT,
+                               ctypes.c_size_t, ctypes.c_ssize_t]
+    IMAGE_ICON, LR_LOADFROMFILE = 1, 0x0010
+    WM_SETICON, ICON_SMALL, ICON_BIG = 0x0080, 0, 1
+    done = False
+    for which, px in ((ICON_SMALL, 16), (ICON_BIG, 32)):
+        h = u.LoadImageW(None, path, IMAGE_ICON, px, px, LR_LOADFROMFILE)
+        if h:
+            u.SendMessageW(hwnd, WM_SETICON, which, ctypes.c_ssize_t(h).value)
+            done = True
+    return done
+
+
+def _x11_find_window(x11, dpy, win, title):
+    """Depth-first search of the window tree for the one named `title`."""
+    import ctypes
+    name = ctypes.c_char_p()
+    if x11.XFetchName(dpy, win, ctypes.byref(name)) and name.value:
+        hit = name.value.decode("utf-8", "replace") == title
+        x11.XFree(name)
+        if hit:
+            return win
+    root = ctypes.c_ulong()
+    parent = ctypes.c_ulong()
+    kids = ctypes.POINTER(ctypes.c_ulong)()
+    n = ctypes.c_uint()
+    if not x11.XQueryTree(dpy, win, ctypes.byref(root), ctypes.byref(parent),
+                          ctypes.byref(kids), ctypes.byref(n)):
+        return 0
+    found = 0
+    for i in range(n.value):
+        found = _x11_find_window(x11, dpy, kids[i], title)
+        if found:
+            break
+    if kids:
+        x11.XFree(kids)
+    return found
+
+
+def _x11_set_icon(title):
+    """Publish the embedded icons as _NET_WM_ICON on the window."""
+    import ctypes
+    _pointer_screen_pos()                # forces the ctypes backend to load
+    be = _pointer_backend
+    if not be or be[0] != "x11":
+        return False
+    _, x11, dpy, root = be
+    x11.XFetchName.argtypes = [ctypes.c_void_p, ctypes.c_ulong,
+                               ctypes.POINTER(ctypes.c_char_p)]
+    x11.XQueryTree.argtypes = [ctypes.c_void_p, ctypes.c_ulong,
+                               ctypes.POINTER(ctypes.c_ulong),
+                               ctypes.POINTER(ctypes.c_ulong),
+                               ctypes.POINTER(ctypes.POINTER(ctypes.c_ulong)),
+                               ctypes.POINTER(ctypes.c_uint)]
+    x11.XInternAtom.restype = ctypes.c_ulong
+    x11.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+    x11.XChangeProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong,
+                                    ctypes.c_ulong, ctypes.c_ulong,
+                                    ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_void_p, ctypes.c_int]
+    win = _x11_find_window(x11, dpy, root, title)
+    if not win:
+        return False
+
+    # _NET_WM_ICON is width, height, then width*height pixels of 0xAARRGGBB,
+    # repeated for every size offered.  Format 32 means "long" to Xlib, which
+    # is 64 bits on LP64 -- hence c_ulong rather than c_uint32.
+    data = []
+    for w, h, bgra in _icon_images():
+        px = (bgra[:, :, 3].astype(np.uint32) << 24 |
+              bgra[:, :, 2].astype(np.uint32) << 16 |
+              bgra[:, :, 1].astype(np.uint32) << 8 |
+              bgra[:, :, 0].astype(np.uint32))
+        data.extend((w, h))
+        data.extend(px.ravel().tolist())
+    if not data:
+        return False
+    buf = (ctypes.c_ulong * len(data))(*data)
+    atom = x11.XInternAtom(dpy, b"_NET_WM_ICON", False)
+    XA_CARDINAL, PROP_MODE_REPLACE = 6, 0
+    x11.XChangeProperty(dpy, win, atom, XA_CARDINAL, 32, PROP_MODE_REPLACE,
+                        ctypes.cast(buf, ctypes.c_void_p), len(data))
+    x11.XFlush(dpy)
+    return True
+
+
+def set_window_icon(title):
+    """Dress the highgui window in our own icon.
+
+    OpenCV exposes no icon API at all, so this goes around it and talks to the
+    window system: WM_SETICON on Windows, _NET_WM_ICON on X11.  The window has
+    to exist already, so call it after the first imshow.  Cosmetic -- every
+    failure here is silent.
+    """
+    try:
+        if sys.platform == "win32":
+            return _win_set_icon(title)
+        return _x11_set_icon(title)
+    except Exception:                    # noqa: BLE001 - purely cosmetic
+        return False
+
+
 def _on_mouse(event, x, y, flags, cursor):
     """Track the pointer in window coordinates.
 
@@ -305,9 +605,14 @@ def main():
     t0 = time.time()
     palette = 0
     cursor = {"x": None, "y": None, "pinned": None}
+    # the window manager may not have mapped the window on the very first
+    # imshow, so the icon gets a few frames to take
+    icon_tries = 0
     if not args.grab:
+        claim_taskbar_identity()         # must precede the first window
         cv2.namedWindow(WINDOW, cv2.WINDOW_AUTOSIZE)
         cv2.setMouseCallback(WINDOW, _on_mouse, cursor)
+        icon_tries = 20
     try:
         for frame in cam.frames():
             n += 1
@@ -353,6 +658,8 @@ def main():
                         (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                         (255, 255, 255), 1, cv2.LINE_AA)
             cv2.imshow(WINDOW, view)
+            if icon_tries:
+                icon_tries = 0 if set_window_icon(WINDOW) else icon_tries - 1
             k = cv2.waitKey(1) & 0xFF
             if k == ord("q") or k == 27:
                 break

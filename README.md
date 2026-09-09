@@ -22,6 +22,8 @@ plane** — a real temperature for every pixel, not just a false-colour picture.
 - **A documented protocol.** [`docs/PROTOCOL.md`](docs/PROTOCOL.md) describes
   the command channel, framing and temperature scale in enough detail to port
   this to another language.
+- **Its own window icon** on both platforms, regenerable with
+  [`tools/make_icon.py`](tools/make_icon.py).
 
 ## Install
 
@@ -130,9 +132,28 @@ here — see the protocol notes).
 
 Issues and pull requests welcome, especially reports from other TS2 units.
 
+## Packaging
+
+PyInstaller works, and the icon needs to travel two ways: baked into the
+executable so Explorer shows it, and as a real file so the running window can
+load it.
+
+```bash
+# Windows  (--add-data separator is ';')
+pyinstaller --onefile --windowed --icon icon.ico --add-data "icon.ico;." ts2_view.py
+
+# Linux    (--add-data separator is ':')
+pyinstaller --onefile --icon icon.ico --add-data "icon.ico:." ts2_view.py
+```
+
+`resource_path()` looks in `sys._MEIPASS` (where `--onefile` unpacks bundled
+data), then beside the executable (`--onedir`), then beside the source — so
+the same code finds the icon frozen or not.
+
 ## Requirements
 
 Python 3.8+, `pyusb`, `numpy`, `opencv-python` (plus `libusb` on Windows).
+Regenerating the icon additionally needs `pillow`; running it does not.
 
 ## Licence
 

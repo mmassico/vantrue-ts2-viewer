@@ -232,6 +232,8 @@ asks the window system for the pointer position — `GetCursorPos` on Windows,
 available the reading simply stays visible.
 
 | `99-vantrue-ts2.rules` | udev rule granting non-root access |
+| `icon.ico` | window icon for Windows and for frozen builds |
+| `tools/make_icon.py` | regenerates `icon.ico` and the icon embedded in the viewer |
 
 ---
 
