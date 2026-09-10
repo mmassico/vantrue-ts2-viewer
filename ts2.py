@@ -42,7 +42,7 @@ Frame layout (197644 bytes, one bulk transfer terminated by a short packet)
        0 ..     11   frame header, 12 bytes
       12 ..  98315   256x192 YUYV422 preview, chroma pinned to 0x80 (AGC'd grey)
    98316 ..  99327   1012-byte parameter/metadata block
-   99328 ..  99339   radiometric-plane header, 12 bytes
+   99328 ..  99339   constant marker, always ff 00 ff 00 ff 00 ff 00 ff 00 ff 00
    99340 .. 197643   256x192 uint16 LE radiometric plane
 
 Each frame transfer is followed by a standalone 12-byte trailer packet that
@@ -71,6 +71,11 @@ IMG_OFF, IMG_LEN = 12, WIDTH * HEIGHT * 2          # 98304, YUYV422
 META_OFF, META_LEN = 98316, 1012
 TMP_HDR_OFF = 99328
 TMP_OFF, TMP_LEN = 99340, WIDTH * HEIGHT * 2       # 98304, uint16 LE
+
+# Bulk reads ask for more than one frame so that a transfer can only end on a
+# short packet -- i.e. on a real frame boundary -- which is what lets frames()
+# recognise and discard a misaligned read.  See frames() for the reasoning.
+READ_SIZE = FRAME_BYTES + 8192
 
 STATE_REPLY_READY, STATE_IDLE = 0x02, 0x03
 
@@ -251,16 +256,26 @@ class TS2:
         self.streaming = False
 
     def frames(self, timeout=1500, settle=8.0):
-        """Yield complete 197644-byte frames.
+        """Yield complete, correctly aligned 197644-byte frames.
 
-        Short transfers (12-byte headers, and the partial frame produced when
-        the stream is joined mid-frame) are skipped.  `settle` bounds how long
-        to tolerate timeouts while the module runs its start-up NUC.
+        Anything that is not exactly one frame long is dropped: the 12-byte
+        trailer packets, and whatever partial transfer turns up when the
+        stream is joined or rejoined mid-frame.  `settle` bounds how long to
+        tolerate timeouts while the module runs its start-up NUC.
+
+        Note the read asks for more than a frame (see READ_SIZE).  That is
+        what makes the alignment check work at all -- with an exact-sized
+        request a transfer can finish on byte count alone, so a read that
+        starts mid-stream still returns a full-length buffer, just one
+        straddling a frame boundary.  Asking for more means the transfer can
+        only end on a short packet, which is always a real frame boundary, so
+        a misaligned read comes back the wrong length and is discarded here
+        instead of being decoded as a frame of nonsense temperatures.
         """
         last = time.time()
         while True:
             try:
-                buf = bytes(self.dev.read(EP_VIDEO, FRAME_BYTES, timeout))
+                buf = bytes(self.dev.read(EP_VIDEO, READ_SIZE, timeout))
             except self._usb.USBError as e:
                 if getattr(e, "errno", None) == 32:          # pipe stalled
                     try:

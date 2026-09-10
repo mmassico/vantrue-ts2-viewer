@@ -225,6 +225,7 @@ class PaletteRange:
         self.smooth = smooth
         self.lo = None
         self.hi = None
+        self._recent = []
 
     @staticmethod
     def _ease(current, target, expanding):
@@ -236,6 +237,18 @@ class PaletteRange:
     def update(self, degc):
         lo, hi = (float(v) for v in
                   np.percentile(degc, [RANGE_LO_PCT, RANGE_HI_PCT]))
+        if self.smooth:
+            # Belt and braces against a single freak frame.  ts2.frames() drops
+            # misaligned reads, so a corrupt frame should never reach here --
+            # but if one ever did, its nonsense temperatures would open the
+            # range out fast and then take seconds to close again, which is
+            # exactly the flash this class exists to prevent.  A median over
+            # the last three targets discards any one-frame outlier outright,
+            # and costs one frame of lag.
+            self._recent.append((lo, hi))
+            del self._recent[:-3]
+            lo = sorted(v[0] for v in self._recent)[len(self._recent) // 2]
+            hi = sorted(v[1] for v in self._recent)[len(self._recent) // 2]
         if self.lo is None or not self.smooth:
             self.lo, self.hi = lo, hi
         else:

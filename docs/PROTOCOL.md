@@ -149,15 +149,24 @@ until it is physically replugged.
 Each frame is **one 197644-byte bulk transfer** on EP `0x81`, terminated by a
 short packet, immediately followed by a standalone **12-byte trailer packet**.
 
-If you request exactly 197632 bytes you will get a truncated frame plus two
-stray 12-byte transfers — request 197644 (or more) instead.
+**Request more than one frame per read, and accept only reads of exactly
+197644 bytes.** With an exact-sized request a transfer can complete on byte
+count alone, so a read that begins mid-stream still returns a full-length
+buffer — one straddling a frame boundary, whose "radiometric plane" is really
+preview pixels and decodes to temperatures around 239 °C. Asking for more
+means the transfer can only end on a short packet, which is always a real
+frame boundary, so a misaligned read comes back the wrong length and can be
+discarded. This matters in practice: anything that stalls the read loop for a
+moment — dragging the window on Windows, firing the shutter — otherwise lets
+a corrupt frame through. Measured after deliberate 1.5 s stalls: 4 corrupt
+frames in 12 with an exact request, 0 in 12 with an oversized one.
 
 ```
  offset    size    content
       0      12    frame header
      12   98304    256x192 YUYV422 preview  (U and V pinned to 0x80)
   98316    1012    parameter / metadata block
-  99328      12    radiometric-plane header
+  99328      12    constant marker: ff 00 ff 00 ff 00 ff 00 ff 00 ff 00
   99340   98304    256x192 uint16 little-endian radiometric plane
              ----
            197644
